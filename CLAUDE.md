@@ -1,13 +1,14 @@
 # StudyAssistant - Claude Project Notes
 
 ## Project Overview
-StudyAssistant is a RAG (Retrieval Augmented Generation) system for studying course materials. It ingests PDFs, chunks and embeds them, and allows querying with AI-powered answers that include citations.
+StudyAssistant is a RAG (Retrieval Augmented Generation) system for studying course materials. It ingests PDFs, chunks and embeds them, and allows querying with AI-powered answers that include citations. Designed specifically for Visual Analytics coursework with strong image analysis capabilities.
 
 ## Tech Stack
 - **Vector Database:** ChromaDB
 - **Embeddings:** sentence-transformers (all-MiniLM-L6-v2)
 - **LLM:** Anthropic Claude Sonnet
 - **PDF Processing:** PyMuPDF (fitz)
+- **Image Processing:** Pillow (for resizing large images)
 - **Web Interface:** Streamlit
 - **Language:** Python 3.13
 
@@ -30,57 +31,46 @@ StudyAssistant/
 - **Chunk Size:** 1000 characters
 - **Chunk Overlap:** 200 characters
 - **Top-K Retrieval:** 5 chunks
+- **Max Image Size:** 4.5MB (auto-resized for Claude API)
 
-## How It Works
+## Quick Start
 
-### Ingestion Pipeline (ingest.py)
-1. Reads PDFs from iCloud StudyPDFs folder
-2. Extracts text page-by-page using PyMuPDF
-3. Extracts significant images and sends to Claude for descriptions
-4. Chunks text (1000 chars, 200 overlap) with page attribution
-5. Generates embeddings with all-MiniLM-L6-v2
-6. Stores in ChromaDB with metadata (filename, pages, type)
-7. Tracks file hashes to skip unchanged PDFs on re-run
+**Using the alias (recommended):**
+```bash
+study
+```
+This launches the Streamlit web interface at http://localhost:8501
 
-### Query Pipeline (query.py / app.py)
-1. Embed the user's question
-2. Retrieve top-k similar chunks from ChromaDB
-3. Send chunks + question to Claude Sonnet
-4. System prompt enforces inline citations [Source: filename, Page(s): X]
-
-## Commands
-
-**Activate environment:**
+**Or manually:**
 ```bash
 cd ~/Desktop/StudyAssistant
 source venv/bin/activate
+streamlit run app.py
 ```
+
+## Commands
 
 **Ingest new PDFs:**
 ```bash
+cd ~/Desktop/StudyAssistant
+source venv/bin/activate
 python ingest.py
 ```
 
-**Force re-ingestion (with images):**
+**Force re-ingestion (to update image descriptions):**
 ```bash
 rm .processed_files.json
 python ingest.py
 ```
 
-**Run CLI query:**
+**CLI query (single question):**
 ```bash
 python query.py "What is a treemap?"
-python query.py -i  # Interactive mode
 ```
 
-**Run web interface:**
+**CLI query (interactive mode):**
 ```bash
-streamlit run app.py
-```
-
-**Or use the launcher:**
-```bash
-./run.sh
+python query.py -i
 ```
 
 ---
@@ -88,55 +78,70 @@ streamlit run app.py
 ## Current State (Feb 2, 2026)
 
 ### Working Features
+
+**Core RAG:**
 - PDF text extraction with page numbers
-- Text chunking with overlap
-- Image extraction and Claude-powered descriptions
+- Text chunking with overlap (1000 chars, 200 overlap)
 - Vector search with ChromaDB
 - CLI and web interfaces
-- Citation-based answers
-- Image upload in web interface for visual questions
 
-### Known Limitations
-- Image descriptions stored separately from surrounding text context
-- Text-only retrieval (no visual similarity search)
-- No automatic retrieval of visual analytics concepts when images uploaded
+**Image Processing:**
+- Image extraction from PDFs during ingestion
+- Claude-powered image descriptions stored as searchable chunks
+- Automatic image resizing for images >4.5MB (Claude API limit)
+- 186 image descriptions extracted from course slides
+
+**Visual Analysis (NEW):**
+- Upload charts/visualizations and ask questions about them
+- System analyzes uploaded image FIRST, then uses course materials
+- Identifies visual encodings (position, color, shape, size)
+- Classifies data attributes as quantitative vs categorical
+- Connects analysis to course concepts with citations
+
+**Citation Format:**
+- IEEE/Vancouver style: numbered [1], [2] inline
+- Full References section at bottom of answers
+
+### Example Use Case (Working!)
+- Upload a scatterplot showing Income vs Limit with shape (gender) and color (marital status)
+- Ask: "How many attributes are shown in this scatterplot?"
+- System correctly identifies:
+  - 4 attributes total
+  - 2 Quantitative (Income, Limit) encoded by x/y position
+  - 2 Categorical (Gender, Marital Status) encoded by shape/color
+- Provides theoretical explanation with course citations
 
 ---
 
-## PLANNED: Visual Analytics Improvements
+## How It Works
 
-**Goal:** Better handle questions that require analyzing charts/visualizations alongside course theory.
+### Ingestion Pipeline (ingest.py)
+1. Reads PDFs from iCloud StudyPDFs folder
+2. Extracts text page-by-page using PyMuPDF
+3. Extracts significant images (>10KB, >100px)
+4. Resizes large images to fit Claude API limits
+5. Sends images to Claude for visual descriptions
+6. Chunks text (1000 chars, 200 overlap) with page attribution
+7. Generates embeddings with all-MiniLM-L6-v2
+8. Stores in ChromaDB with metadata (filename, pages, type)
+9. Tracks file hashes to skip unchanged PDFs on re-run
 
-**Example Use Case:**
-- User uploads a scatterplot showing Income vs Limit with shape (gender) and color (marital status)
-- Question: "How many attributes are shown?"
-- System should: identify visual encodings in the image AND retrieve course content about data types, marks, channels
+### Query Pipeline (app.py)
+1. User enters question and optionally uploads an image
+2. Question is embedded and top-k similar chunks retrieved
+3. If image uploaded: Claude analyzes the image FIRST
+4. Course materials provide theoretical context and citations
+5. Response uses IEEE citation format with References section
 
-### Planned Changes
+---
 
-#### 1. Enhanced Image Query Retrieval
-When an image is uploaded, automatically retrieve chunks about:
-- "visual encodings"
-- "quantitative vs categorical"
-- "marks and channels"
-- "data attributes"
+## Future Improvements
 
-#### 2. Improved Query Prompt for Visual Analysis
-Update the Claude prompt to:
-1. First identify all visual encodings in the uploaded image
-2. Map each encoding to course concepts
-3. Answer using both image analysis and course materials
-
-#### 3. Context-Aware Image Descriptions (ingest.py)
-When storing image descriptions during ingestion:
-- Include the slide/page title
-- Include surrounding text context
-- Tag with visual analytics keywords for better retrieval
-
-#### 4. Visual Analytics Keyword Boosting
-When query mentions visualization terms or includes an image:
-- Boost retrieval of chunks tagged as visual analytics concepts
-- Ensure foundational theory is always included
+**Potential Enhancements:**
+- Automatic retrieval of visual encoding concepts when image uploaded
+- Slide-aware chunking (keep slide title + content together)
+- Multi-modal retrieval using CLIP embeddings
+- OCR for text within charts (axis labels, legends)
 
 ---
 
@@ -154,10 +159,24 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+**Shell alias (in ~/.zshrc):**
+```bash
+alias study="cd ~/Desktop/StudyAssistant && source venv/bin/activate && streamlit run app.py --server.address 0.0.0.0"
+```
+
 ---
 
 ## Course Materials
 Currently ingested for: **BAIS:6140 Visual Analytics** (Spring 2026)
-- BAIS6140 Visual Analytics Slides.pdf (228 pages, 75+ chunks)
+- BAIS6140 Visual Analytics Slides.pdf (228 pages)
+- 75 text chunks
+- 186 image descriptions
+- 296 total chunks in database
 
-Add new materials to: `~/Library/Mobile Documents/com~apple~CloudDocs/StudyPDFs/`
+**Add new materials to:** `~/Library/Mobile Documents/com~apple~CloudDocs/StudyPDFs/`
+Then run `python ingest.py` to process them.
+
+---
+
+## Repository
+GitHub: https://github.com/SteveKosbau/StudyAssistant
