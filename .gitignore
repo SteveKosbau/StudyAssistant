@@ -1,0 +1,29 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# ChromaDB database (regenerated from PDFs)
+chroma_db/
+
+# Processed files log (regenerated)
+.processed_files.json
+
+# Environment variables (contains API key)
+.env
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/

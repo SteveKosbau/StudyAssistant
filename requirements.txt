@@ -1,0 +1,18 @@
+# PDF processing
+PyMuPDF>=1.23.0
+
+# Embeddings
+sentence-transformers>=2.2.0
+
+# Vector database
+chromadb>=0.4.0
+
+# LLM
+anthropic>=0.18.0
+
+# Web interface
+streamlit>=1.30.0
+
+# Utilities
+python-dotenv>=1.0.0
+tqdm>=4.65.0
