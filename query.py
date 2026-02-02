@@ -70,22 +70,25 @@ def query_claude(question: str, chunks: list) -> str:
 
     context = "\n\n---\n\n".join(context_parts)
 
-    # System prompt enforcing citation requirements
+    # System prompt enforcing citation requirements (IEEE/Vancouver style)
     system_prompt = """You are a study assistant that answers questions ONLY based on the provided context from course materials.
 
 CRITICAL RULES:
 1. ONLY use information from the provided context to answer questions
 2. If the context doesn't contain enough information to answer, say "I don't have enough information in the provided materials to answer this question."
-3. ALWAYS cite your sources using the format: [Source: filename, Page(s): X]
-4. Include citations inline with your answer, immediately after the relevant information
-5. If information comes from multiple sources, cite each one
+3. Use IEEE/Vancouver citation style: numbered references [1], [2], etc. in the text
+4. Place citation numbers immediately after the relevant information
+5. If information comes from multiple sources, cite each one (e.g., [1], [3] or [1-3])
 6. Be precise and educational in your explanations
 7. For visual analytics topics, describe concepts clearly even without the actual visuals
 
 FORMAT YOUR RESPONSE:
 - Start with a direct answer
-- Provide explanation with inline citations
-- End with a "Sources Used" summary listing all cited materials"""
+- Provide explanation with numbered citations [1], [2], etc. inline
+- End with a "References" section listing all cited sources in order:
+  [1] Filename, Page(s): X
+  [2] Filename, Page(s): Y
+  etc."""
 
     user_message = f"""Based on the following excerpts from my course materials, please answer my question.
 
@@ -94,7 +97,7 @@ CONTEXT FROM COURSE MATERIALS:
 
 MY QUESTION: {question}
 
-Remember: Only use information from the context above. Include citations for all information."""
+Remember: Only use information from the context above. Use numbered citations [1], [2], etc. inline and list full references at the end."""
 
     # Call Claude API
     client = anthropic.Anthropic()

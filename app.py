@@ -211,32 +211,45 @@ def query_claude(question: str, chunks: list, image_data: bytes = None, image_ty
 
     context = "\n\n---\n\n".join(context_parts)
 
-    system_prompt = """You are a study assistant that answers questions based on the provided context from course materials.
+    # IEEE/Vancouver citation style
+    system_prompt = """You are a study assistant for a Visual Analytics course.
+
+WHEN THE USER UPLOADS AN IMAGE:
+1. FIRST, directly analyze the uploaded image - describe what you see (chart type, axes, marks, colors, shapes, legends, etc.)
+2. THEN, answer the user's question about that image
+3. FINALLY, use the course materials context to explain WHY - connect your analysis to course concepts
+
+For example, if asked "How many attributes are shown?":
+- Identify each visual encoding (x-position, y-position, color, shape, size, etc.)
+- Each encoding typically represents one data attribute
+- Classify each as quantitative or categorical based on course concepts
 
 CRITICAL RULES:
-1. Primarily use information from the provided context to answer questions
-2. If an image is provided, analyze it and relate it to the course materials when possible
-3. If the context doesn't contain enough information, say so but still try to help with the image if one is provided
-4. ALWAYS cite your sources using the format: [Source: filename, Page(s): X]
-5. Include citations inline with your answer, immediately after the relevant information
-6. If information comes from multiple sources, cite each one
-7. Be precise and educational in your explanations
-8. For visual analytics topics, describe concepts clearly and analyze any provided visualizations
+1. If an image is uploaded, analyze IT directly - don't confuse it with image descriptions in the context
+2. Use course materials to provide theoretical backing for your analysis
+3. Use IEEE/Vancouver citation style: numbered references [1], [2], etc.
+4. Be precise and educational
+5. If context doesn't cover the topic, still analyze the image and explain using general visual analytics principles
 
 FORMAT YOUR RESPONSE:
-- Start with a direct answer
-- Provide explanation with inline citations
-- If analyzing an image, describe what you see and how it relates to course concepts
-- End with a "Sources Used" summary listing all cited materials"""
+- Start with direct analysis of the uploaded image (if any)
+- Answer the specific question asked
+- Explain using course concepts with numbered citations [1], [2], etc.
+- End with a "References" section:
+  [1] Filename, Page(s): X
+  [2] Filename, Page(s): Y"""
 
-    user_text = f"""Based on the following excerpts from my course materials, please answer my question.
-
-CONTEXT FROM COURSE MATERIALS:
-{context}
+    user_text = f"""I have a question about Visual Analytics. I may have attached an image for you to analyze.
 
 MY QUESTION: {question}
 
-Remember: Use information from the context above and include citations. If I've attached an image, please analyze it in the context of my course materials."""
+RELEVANT COURSE MATERIAL EXCERPTS (use these for theoretical context and citations):
+{context}
+
+INSTRUCTIONS:
+- If I attached an image, analyze THAT image directly to answer my question
+- Use the course material excerpts above to explain concepts and provide citations
+- The excerpts labeled [IMAGE/FIGURE...] are from my course slides, not my uploaded image"""
 
     client = anthropic.Anthropic()
 
@@ -347,33 +360,13 @@ def main():
     # Image input section
     st.markdown("**📷 Add an image (optional):**")
 
-    image_tab1, image_tab2 = st.tabs(["📋 Paste Screenshot", "📁 Upload File"])
-
-    with image_tab1:
-        # Clipboard paste zone
-        st.markdown("Take a screenshot (`Cmd+Shift+4`), then click below and paste (`Cmd+V`):")
-        components.html(PASTE_IMAGE_JS, height=200)
-
-        # Hidden text input to receive pasted image data via query params workaround
-        # Note: Due to Streamlit limitations, we use file upload as backup
-        st.caption("*If paste doesn't work, use the Upload File tab*")
-
-    with image_tab2:
-        uploaded_image = st.file_uploader(
-            "Upload a chart, diagram, or visualization",
-            type=["png", "jpg", "jpeg", "gif", "webp"],
-            help="Upload an image and ask questions about it in the context of your course materials"
-        )
-        if uploaded_image:
-            st.image(uploaded_image, caption="Uploaded image", width=400)
-
-    # Also support pasting via a text area workaround for base64
-    pasted_base64 = st.text_input(
-        "Or paste base64 image data (advanced):",
-        key="base64_input",
-        label_visibility="collapsed",
-        placeholder="Paste base64 data here if clipboard paste above doesn't work"
+    uploaded_image = st.file_uploader(
+        "Upload a chart, diagram, or visualization",
+        type=["png", "jpg", "jpeg", "gif", "webp"],
+        help="Upload an image and ask questions about it in the context of your course materials"
     )
+    if uploaded_image:
+        st.image(uploaded_image, caption="Uploaded image", width=400)
 
     if st.button("Get Answer", type="primary"):
         if question:
@@ -389,11 +382,10 @@ def main():
                         st.text(chunk['text'][:500] + "..." if len(chunk['text']) > 500 else chunk['text'])
                         st.divider()
 
-            # Prepare image data - check multiple sources
+            # Prepare image data from uploaded file
             image_data = None
             image_type = None
 
-            # Priority 1: Uploaded file
             if uploaded_image:
                 image_data = uploaded_image.getvalue()
                 ext = uploaded_image.name.split('.')[-1].lower()
@@ -405,16 +397,7 @@ def main():
                     'webp': 'image/webp'
                 }
                 image_type = mime_map.get(ext, 'image/png')
-
-            # Priority 2: Pasted base64
-            elif pasted_base64 and pasted_base64.startswith('data:image'):
-                try:
-                    # Parse data URL: data:image/png;base64,xxxxx
-                    header, data = pasted_base64.split(',', 1)
-                    image_type = header.split(':')[1].split(';')[0]
-                    image_data = data  # Keep as base64 string
-                except:
-                    pass
+                st.info(f"📷 Image attached: {uploaded_image.name} ({len(image_data)} bytes)")
 
             with st.spinner("Generating answer..."):
                 answer = query_claude(question, chunks, image_data, image_type)
