@@ -12,6 +12,11 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 import anthropic
 import streamlit.components.v1 as components
+from dotenv import load_dotenv
+import fitz  # PyMuPDF
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration
 CHROMA_PATH = os.path.expanduser("~/Desktop/StudyAssistant/chroma_db")
@@ -178,6 +183,19 @@ def load_database():
         return client, None
 
 
+def extract_pdf_text(uploaded_file) -> str:
+    """Extract text from an uploaded PDF file."""
+    pdf_bytes = uploaded_file.getvalue()
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    pages = []
+    for i, page in enumerate(doc, 1):
+        text = page.get_text().strip()
+        if text:
+            pages.append(f"[Page {i}]\n{text}")
+    doc.close()
+    return "\n\n".join(pages)
+
+
 def get_relevant_chunks(query: str, embedder, collection, top_k: int = TOP_K) -> list:
     """Retrieve relevant chunks from ChromaDB."""
     query_embedding = embedder.encode(query).tolist()
@@ -200,8 +218,8 @@ def get_relevant_chunks(query: str, embedder, collection, top_k: int = TOP_K) ->
     return chunks
 
 
-def query_claude(question: str, chunks: list, image_data: bytes = None, image_type: str = None) -> str:
-    """Send question and context to Claude, get answer with citations. Optionally include an image."""
+def query_claude(question: str, chunks: list, image_data: bytes = None, image_type: str = None, pdf_text: str = None) -> str:
+    """Send question and context to Claude, get answer with citations. Optionally include an image and/or PDF text."""
 
     context_parts = []
     for i, chunk in enumerate(chunks, 1):
@@ -224,12 +242,19 @@ For example, if asked "How many attributes are shown?":
 - Each encoding typically represents one data attribute
 - Classify each as quantitative or categorical based on course concepts
 
+WHEN THE USER UPLOADS A PDF DOCUMENT:
+1. Read the uploaded document content carefully
+2. Answer questions about it using both the document AND your course material knowledge
+3. For homework/assignments: guide the student through the problems, explain concepts, help them understand — but encourage their own thinking
+4. Still cite course materials where relevant
+
 CRITICAL RULES:
 1. If an image is uploaded, analyze IT directly - don't confuse it with image descriptions in the context
 2. Use course materials to provide theoretical backing for your analysis
 3. Use IEEE/Vancouver citation style: numbered references [1], [2], etc.
 4. Be precise and educational
 5. If context doesn't cover the topic, still analyze the image and explain using general visual analytics principles
+6. If a PDF document is uploaded, reference it as [Uploaded Document] in your response
 
 FORMAT YOUR RESPONSE:
 - Start with direct analysis of the uploaded image (if any)
@@ -239,15 +264,25 @@ FORMAT YOUR RESPONSE:
   [1] Filename, Page(s): X
   [2] Filename, Page(s): Y"""
 
-    user_text = f"""I have a question about Visual Analytics. I may have attached an image for you to analyze.
+    # Build the uploaded document section if PDF was provided
+    pdf_section = ""
+    if pdf_text:
+        pdf_section = f"""
+
+UPLOADED DOCUMENT CONTENT:
+{pdf_text}
+"""
+
+    user_text = f"""I have a question about Visual Analytics. I may have attached an image and/or a PDF document for you to analyze.
 
 MY QUESTION: {question}
-
+{pdf_section}
 RELEVANT COURSE MATERIAL EXCERPTS (use these for theoretical context and citations):
 {context}
 
 INSTRUCTIONS:
 - If I attached an image, analyze THAT image directly to answer my question
+- If I attached a PDF document, use its content to answer my question
 - Use the course material excerpts above to explain concepts and provide citations
 - The excerpts labeled [IMAGE/FIGURE...] are from my course slides, not my uploaded image"""
 
@@ -357,16 +392,28 @@ def main():
         placeholder="e.g., What is the difference between a treemap and a sunburst chart?"
     )
 
-    # Image input section
-    st.markdown("**📷 Add an image (optional):**")
+    # File input sections
+    col_img, col_pdf = st.columns(2)
 
-    uploaded_image = st.file_uploader(
-        "Upload a chart, diagram, or visualization",
-        type=["png", "jpg", "jpeg", "gif", "webp"],
-        help="Upload an image and ask questions about it in the context of your course materials"
-    )
-    if uploaded_image:
-        st.image(uploaded_image, caption="Uploaded image", width=400)
+    with col_img:
+        st.markdown("**Upload an image (optional):**")
+        uploaded_image = st.file_uploader(
+            "Chart, diagram, or visualization",
+            type=["png", "jpg", "jpeg", "gif", "webp"],
+            help="Upload an image and ask questions about it"
+        )
+        if uploaded_image:
+            st.image(uploaded_image, caption="Uploaded image", width=300)
+
+    with col_pdf:
+        st.markdown("**Upload a PDF (optional):**")
+        uploaded_pdf = st.file_uploader(
+            "Homework, assignment, or reading",
+            type=["pdf"],
+            help="Upload a PDF document to ask questions about it"
+        )
+        if uploaded_pdf:
+            st.success(f"Attached: {uploaded_pdf.name}")
 
     if st.button("Get Answer", type="primary"):
         if question:
@@ -376,7 +423,7 @@ def main():
                 chunks = get_relevant_chunks(question, embedder, collection, top_k)
 
             if show_sources:
-                with st.expander("📄 Retrieved Sources", expanded=False):
+                with st.expander("Retrieved Sources", expanded=False):
                     for i, chunk in enumerate(chunks, 1):
                         st.markdown(f"**[{i}] {chunk['filename']}** (Page(s): {chunk['pages']})")
                         st.text(chunk['text'][:500] + "..." if len(chunk['text']) > 500 else chunk['text'])
@@ -397,13 +444,20 @@ def main():
                     'webp': 'image/webp'
                 }
                 image_type = mime_map.get(ext, 'image/png')
-                st.info(f"📷 Image attached: {uploaded_image.name} ({len(image_data)} bytes)")
+                st.info(f"Image attached: {uploaded_image.name}")
+
+            # Extract PDF text if uploaded
+            pdf_text = None
+            if uploaded_pdf:
+                with st.spinner("Reading PDF..."):
+                    pdf_text = extract_pdf_text(uploaded_pdf)
+                st.info(f"PDF attached: {uploaded_pdf.name} ({len(pdf_text):,} characters)")
 
             with st.spinner("Generating answer..."):
-                answer = query_claude(question, chunks, image_data, image_type)
+                answer = query_claude(question, chunks, image_data, image_type, pdf_text)
 
             st.divider()
-            st.subheader("💡 Answer")
+            st.subheader("Answer")
             st.markdown(answer)
 
     # Example questions
