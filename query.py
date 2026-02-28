@@ -11,17 +11,21 @@ import argparse
 import chromadb
 from sentence_transformers import SentenceTransformer
 import anthropic
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration
 CHROMA_PATH = os.path.expanduser("~/Desktop/StudyAssistant/chroma_db")
 COLLECTION_NAME = "study_materials"
-TOP_K = 5  # Number of chunks to retrieve
+TOP_K = 10  # Number of chunks to retrieve
 
 
 def get_relevant_chunks(query: str, top_k: int = TOP_K) -> list:
     """Retrieve relevant chunks from ChromaDB."""
     # Initialize embedding model
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    embedder = SentenceTransformer('all-mpnet-base-v2')
 
     # Initialize ChromaDB
     client = chromadb.PersistentClient(path=CHROMA_PATH)

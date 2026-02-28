@@ -168,10 +168,13 @@ alias study="cd ~/Desktop/StudyAssistant && source venv/bin/activate && streamli
 
 ## Course Materials
 Currently ingested for: **BAIS:6140 Visual Analytics** (Spring 2026)
-- BAIS6140 Visual Analytics Slides.pdf (228 pages)
-- 75 text chunks
-- 186 image descriptions
-- 296 total chunks in database
+- BAIS6140 Visual Analytics Slides.pdf
+- BAIS6140 - Session 3.pdf
+- BAIS6140 - Session 4.pdf
+- Modules 3.1-3.5 (Tableau)
+- Modules 4.1-4.4 (Exploratory Analysis, Clustering, Predictive, Forecasting)
+- Modules 5.1-5.3 (Interactivity, Dashboards, Power BI)
+- 515 total chunks in database
 
 **Add new materials to:** `~/Library/Mobile Documents/com~apple~CloudDocs/StudyPDFs/`
 Then run `python ingest.py` to process them.

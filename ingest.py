@@ -19,6 +19,10 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 import anthropic
 from PIL import Image
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Maximum image size for Claude API (5MB, use 4.5MB for safety)
 MAX_IMAGE_BYTES = 4_500_000
@@ -353,7 +357,7 @@ def ingest_pdfs(extract_images: bool = True):
 
     # Initialize embedding model
     print("\nLoading embedding model...")
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    embedder = SentenceTransformer('all-mpnet-base-v2')
 
     # Initialize ChromaDB
     print("Initializing vector database...")

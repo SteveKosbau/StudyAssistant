@@ -21,7 +21,7 @@ load_dotenv()
 # Configuration
 CHROMA_PATH = os.path.expanduser("~/Desktop/StudyAssistant/chroma_db")
 COLLECTION_NAME = "study_materials"
-TOP_K = 5
+TOP_K = 10
 
 
 # JavaScript for clipboard paste functionality
@@ -165,7 +165,7 @@ PASTE_IMAGE_JS = """
 @st.cache_resource
 def load_models():
     """Load embedding model (cached)."""
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    embedder = SentenceTransformer('all-mpnet-base-v2')
     return embedder
 
 
